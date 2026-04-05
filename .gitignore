@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# PyInstaller
+build/
+dist/
+*.spec.bak
+
+# Logs
+*.log
+
+# Analyse / debug (dossier temporaire)
+analyse/
+
+# Claude Code
+.claude/
+
+# IDE
+.vscode/
+.idea/
+*.suo
+
+# OS
+Thumbs.db
+Desktop.ini
