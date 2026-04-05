@@ -395,8 +395,9 @@ class CCOverlayWindow(QWidget):
 
     # ── Clamp position ─────────────────────────────────────────────
 
-    def _clamp_to_screen(self, pos: QPoint, size=None) -> QPoint:
-        screen = QGuiApplication.primaryScreen().availableGeometry()
+    def _clamp_to_screen(self, pos: QPoint, size=None, cursor_ref: QPoint | None = None) -> QPoint:
+        ref    = cursor_ref if cursor_ref is not None else pos
+        screen = (QGuiApplication.screenAt(ref) or QGuiApplication.primaryScreen()).availableGeometry()
         w = size.width()  if size else self.width()
         h = size.height() if size else self.height()
         x = max(screen.left(), min(pos.x(), screen.right()  - w))
@@ -419,8 +420,9 @@ class CCOverlayWindow(QWidget):
 
     def mouseMoveEvent(self, event) -> None:
         if event.buttons() & Qt.MouseButton.LeftButton and self._drag_pos is not None:
-            new_pos = event.globalPosition().toPoint() - self._drag_pos
-            self.move(self._clamp_to_screen(new_pos))
+            cursor   = event.globalPosition().toPoint()
+            new_pos  = cursor - self._drag_pos
+            self.move(self._clamp_to_screen(new_pos, cursor_ref=cursor))
             event.accept()
 
     def mouseReleaseEvent(self, event) -> None:
