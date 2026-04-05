@@ -10,6 +10,12 @@ Overlay desktop ultra-compact qui affiche en temps réel l'utilisation de l'abon
 
 ---
 
+## Mise en place 
+
+1. Installer tampermonkey [ici](https://www.tampermonkey.net/) puis installer le userscript : [ici](https://github.com/GhislainSamy/claude-sessions-stats/raw/main//browser/claude_usage_stats_to_desktop.user.js)
+2. Ouvrir https://claude.ai/settings/usage
+3. lancer claude_stats.exe
+
 ## Demo
 
 Vue :

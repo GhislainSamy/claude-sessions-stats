@@ -1,19 +1,31 @@
 // ==UserScript==
 // @name         Claude Usage Stats → Desktop
 // @namespace    https://github.com/GhislainSamy/claude-sessions-stats
-// @version      1.0
+// @version      1.1
 // @description  Envoie les stats d'usage Claude au widget desktop toutes les N secondes
 // @match        https://claude.ai/settings/usage
 // @grant        GM_xmlhttpRequest
+// @grant        GM_getValue
+// @grant        GM_setValue
+// @grant        GM_registerMenuCommand
 // @connect      localhost
 // ==/UserScript==
 
 (function () {
     'use strict';
 
-    // ── Configuration ──────────────────────────────────────────────
-    const LOCAL_PORT = 7842;  // Doit correspondre à config.ini [server] port
-    const INTERVAL_SEC = 30;  // Intervalle de rafraîchissement en secondes
+    // ── Configuration (stockée dans Tampermonkey, modifiable via le menu) ──
+    let LOCAL_PORT   = GM_getValue('LOCAL_PORT',   7842);
+    let INTERVAL_SEC = GM_getValue('INTERVAL_SEC', 30);
+
+    GM_registerMenuCommand(`Port : ${LOCAL_PORT}`, () => {
+        const val = prompt('Port du widget desktop :', LOCAL_PORT);
+        if (val && !isNaN(val)) { GM_setValue('LOCAL_PORT', parseInt(val)); location.reload(); }
+    });
+    GM_registerMenuCommand(`Intervalle : ${INTERVAL_SEC}s`, () => {
+        const val = prompt('Intervalle de rafraîchissement (secondes) :', INTERVAL_SEC);
+        if (val && !isNaN(val)) { GM_setValue('INTERVAL_SEC', parseInt(val)); location.reload(); }
+    });
     // ───────────────────────────────────────────────────────────────
 
     function getOrgId() {
