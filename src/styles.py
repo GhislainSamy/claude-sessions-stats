@@ -118,6 +118,31 @@ QMenu::item {{
 QMenu::item:selected {{
     background-color: #334155;
 }}
+
+QWidget#opacity_popup {{
+    background-color: #1E293B;
+    border: 1px solid #334155;
+    border-radius: 6px;
+}}
+
+QSlider::groove:horizontal {{
+    background: #334155;
+    height: 4px;
+    border-radius: 2px;
+}}
+
+QSlider::sub-page:horizontal {{
+    background: #38BDF8;
+    border-radius: 2px;
+}}
+
+QSlider::handle:horizontal {{
+    background: #38BDF8;
+    width: 12px;
+    height: 12px;
+    border-radius: 6px;
+    margin: -4px 0;
+}}
 """
 
 

@@ -11,15 +11,17 @@ import sys
 
 import styles as _styles_mod
 from PySide6.QtCore import QPoint, QPropertyAnimation, QTimer, Qt, Slot
-from PySide6.QtGui import QColor, QPainter, QPixmap
+from PySide6.QtGui import QColor, QGuiApplication, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMenu,
     QProgressBar,
     QSizePolicy,
+    QSlider,
     QVBoxLayout,
     QWidget,
+    QWidgetAction,
 )
 
 from server import UsageServer
@@ -36,7 +38,8 @@ class CCOverlayWindow(QWidget):
 
     def __init__(self, server: UsageServer, *, show_timer: bool = True,
                  config_path: str = "config.ini",
-                 anim_pulse: bool = True, anim_blink: bool = True):
+                 anim_pulse: bool = True, anim_blink: bool = True,
+                 locked: bool = False):
         super().__init__()
         self._drag_pos: QPoint | None = None
         self._elapsed_seconds: int = 0
@@ -44,6 +47,7 @@ class CCOverlayWindow(QWidget):
         self._config_path = config_path
         self._anim_pulse = anim_pulse
         self._anim_blink = anim_blink
+        self._locked = locked
         self._prev_session: int | None = None
         self._prev_weekly: int | None = None
         self._pulse_anim: QPropertyAnimation | None = None
@@ -120,6 +124,16 @@ class CCOverlayWindow(QWidget):
         content.addLayout(self._make_row("⚡", "session"))
         content.addLayout(self._make_row("🗓️", "weekly"))
         root.addLayout(content)
+
+        # ── Cadenas (overlay flottant, hors layout) ──
+        self._lock_btn = QLabel("🔒" if self._locked else "🔓", self)
+        self._lock_btn.setObjectName("lock_btn")
+        self._lock_btn.setFixedSize(10, 10)
+        self._lock_btn.setStyleSheet("font-size: 8px;")
+        self._lock_btn.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._lock_btn.move(3, 3)
+        self._lock_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._lock_btn.raise_()
 
     def _make_row(self, emoji: str, prefix: str) -> QHBoxLayout:
         row = QHBoxLayout()
@@ -248,7 +262,7 @@ class CCOverlayWindow(QWidget):
         anim.setKeyValueAt(0,   1.0)
         anim.setKeyValueAt(0.5, 0.25)
         anim.setKeyValueAt(1.0, 1.0)
-        anim.finished.connect(lambda: self.setWindowOpacity(1.0))
+        anim.finished.connect(lambda: self.setWindowOpacity(self.windowOpacity()))
         anim.start()
         self._pulse_anim = anim
 
@@ -300,7 +314,31 @@ class CCOverlayWindow(QWidget):
         blink_action.setChecked(self._anim_blink)
         blink_action.triggered.connect(lambda checked: self._toggle_anim("anim_blink", checked))
 
-        menu.addAction("Enregistrer la position").triggered.connect(self._save_position)
+        # ── Slider transparence intégré au menu ──
+        opacity_widget = QWidget()
+        opacity_layout = QHBoxLayout(opacity_widget)
+        opacity_layout.setContentsMargins(16, 4, 8, 4)
+        opacity_layout.setSpacing(6)
+        opacity_layout.addWidget(QLabel("🌫️"))
+        opacity_slider = QSlider(Qt.Orientation.Horizontal)
+        opacity_slider.setRange(20, 100)
+        opacity_slider.setValue(int(self.windowOpacity() * 100))
+        opacity_slider.setFixedWidth(110)
+        opacity_pct = QLabel(f"{opacity_slider.value()}%")
+        opacity_pct.setFixedWidth(36)
+        opacity_layout.addWidget(opacity_slider)
+        opacity_layout.addWidget(opacity_pct)
+
+        opacity_slider.valueChanged.connect(
+            lambda v: (opacity_pct.setText(f"{v}%"), self.setWindowOpacity(v / 100))
+        )
+        opacity_slider.sliderReleased.connect(
+            lambda: self._save_config("opacity", str(opacity_slider.value()))
+        )
+
+        wa = QWidgetAction(menu)
+        wa.setDefaultWidget(opacity_widget)
+        menu.addAction(wa)
         menu.addSeparator()
         menu.addAction("Quitter").triggered.connect(QApplication.quit)
         menu.exec(event.globalPos())
@@ -341,10 +379,10 @@ class CCOverlayWindow(QWidget):
         setattr(self, f"_{key}", value)
         self._save_config(key, "true" if value else "false")
 
-    def _save_position(self) -> None:
-        pos = self.pos()
-        self._save_config("start_position_x", str(pos.x()))
-        self._save_config("start_position_y", str(pos.y()))
+    def _toggle_lock(self) -> None:
+        self._locked = not self._locked
+        self._lock_btn.setText("🔒" if self._locked else "🔓")
+        self._save_config("locked", "true" if self._locked else "false")
 
     def _save_config(self, key: str, value: str) -> None:
         cfg = configparser.ConfigParser(interpolation=None)
@@ -355,18 +393,34 @@ class CCOverlayWindow(QWidget):
         with open(self._config_path, "w", encoding="utf-8") as f:
             cfg.write(f)
 
+    # ── Clamp position ─────────────────────────────────────────────
+
+    def _clamp_to_screen(self, pos: QPoint, size=None) -> QPoint:
+        screen = QGuiApplication.primaryScreen().availableGeometry()
+        w = size.width()  if size else self.width()
+        h = size.height() if size else self.height()
+        x = max(screen.left(), min(pos.x(), screen.right()  - w))
+        y = max(screen.top(),  min(pos.y(), screen.bottom() - h))
+        return QPoint(x, y)
+
     # ── Drag & Drop ────────────────────────────────────────────────
 
     def mousePressEvent(self, event) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
-            self._drag_pos = (
-                event.globalPosition().toPoint() - self.frameGeometry().topLeft()
-            )
+            if self._lock_btn.geometry().contains(event.pos()):
+                self._toggle_lock()
+                event.accept()
+                return
+            if not self._locked:
+                self._drag_pos = (
+                    event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+                )
             event.accept()
 
     def mouseMoveEvent(self, event) -> None:
         if event.buttons() & Qt.MouseButton.LeftButton and self._drag_pos is not None:
-            self.move(event.globalPosition().toPoint() - self._drag_pos)
+            new_pos = event.globalPosition().toPoint() - self._drag_pos
+            self.move(self._clamp_to_screen(new_pos))
             event.accept()
 
     def mouseReleaseEvent(self, event) -> None:

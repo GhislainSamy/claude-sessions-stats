@@ -56,7 +56,19 @@ def _load_config() -> configparser.ConfigParser:
 
 # ── Main ──────────────────────────────────────────────────────────
 
+def _ensure_single_instance() -> None:
+    """Quitte si une instance tourne déjà (via QLockFile dans le dossier temp)."""
+    import tempfile
+    from PySide6.QtCore import QLockFile
+    lock_path = os.path.join(tempfile.gettempdir(), "claude_stats.lock")
+    # Stocké en attribut de module pour garder le lock actif toute la session
+    _ensure_single_instance._lock = QLockFile(lock_path)
+    if not _ensure_single_instance._lock.tryLock(100):
+        sys.exit(0)
+
+
 def main() -> None:
+    _ensure_single_instance()
     config = _load_config()
 
     port  = config.getint("server", "port",            fallback=7842)
@@ -66,6 +78,8 @@ def main() -> None:
     show_timer = config.getboolean("app", "show_timer", fallback=True)
     anim_pulse = config.getboolean("app", "anim_pulse", fallback=True)
     anim_blink = config.getboolean("app", "anim_blink", fallback=True)
+    locked     = config.getboolean("app", "locked",     fallback=False)
+    opacity    = config.getint    ("app", "opacity",    fallback=90)
 
     from PySide6.QtCore import Qt
     from PySide6.QtWidgets import QApplication
@@ -90,8 +104,10 @@ def main() -> None:
     server.start()
 
     window = CCOverlayWindow(server, show_timer=show_timer, config_path=_get_config_path(),
-                             anim_pulse=anim_pulse, anim_blink=anim_blink)
-    window.move(pos_x, pos_y)
+                             anim_pulse=anim_pulse, anim_blink=anim_blink, locked=locked)
+    window.setWindowOpacity(opacity / 100)
+    from PySide6.QtCore import QPoint
+    window.move(window._clamp_to_screen(QPoint(pos_x, pos_y)))
     window.show()
 
     sys.exit(app.exec())
